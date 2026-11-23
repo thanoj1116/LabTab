@@ -1,0 +1,105 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id         String     @id @default(cuid())
+  name       String
+  email      String     @unique
+  role       String     // "STUDENT" | "FACULTY" | "ADMIN"
+  department String?
+  requests   Request[]  @relation("StudentRequests")
+  approvals  Approval[] @relation("FacultyApprovals")
+
+  createdAt  DateTime   @default(now())
+
+  @@index([role])
+  @@index([department])
+}
+
+model Equipment {
+  id             String    @id @default(cuid())
+  name           String
+  department     String
+  category       String    // e.g. FPGA, Microcontroller, Oscilloscope, Workstation, Sensor Kit, 3D Printer
+  specs          String    // JSON string description of hardware capabilities
+  quantity       Int       @default(1)
+  location       String
+  openHoursStart String    @default("08:00") // "08:00"
+  openHoursEnd   String    @default("20:00") // "20:00"
+  isActive       Boolean   @default(true)
+
+  requests       Request[]
+  bookings       Booking[]
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([department])
+  @@index([category])
+  @@index([isActive])
+}
+
+model Request {
+  id                 String    @id @default(cuid())
+  studentId          String
+  equipmentId        String
+  projectTitle       String
+  projectDescription String
+  justification      String
+  deadline           DateTime
+  durationHours      Int
+  preferredStart     DateTime
+  priorityScore      Float     @default(0.0)
+  status             String    @default("PENDING") // "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"
+  decisionReason     String?
+  createdAt          DateTime  @default(now())
+
+  student            User      @relation("StudentRequests", fields: [studentId], references: [id], onDelete: Cascade)
+  equipment          Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  booking            Booking?
+  approvals          Approval[]
+
+  @@index([studentId])
+  @@index([equipmentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Booking {
+  id          String    @id @default(cuid())
+  requestId   String    @unique
+  equipmentId String
+  start       DateTime
+  end         DateTime
+  status      String    @default("CONFIRMED") // "CONFIRMED" | "CANCELLED"
+  createdAt   DateTime  @default(now())
+
+  request     Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([start])
+  @@index([end])
+  @@index([status])
+}
+
+model Approval {
+  id        String   @id @default(cuid())
+  requestId String
+  facultyId String
+  decision  String   // "APPROVED" | "REJECTED"
+  reason    String?
+  decidedAt DateTime @default(now())
+
+  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  faculty   User     @relation("FacultyApprovals", fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([facultyId])
+}
