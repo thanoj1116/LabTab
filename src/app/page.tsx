@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   GraduationCap,
@@ -8,15 +8,18 @@ import {
   ShieldAlert,
   ArrowRight,
   Sparkles,
-  Cpu,
-  Clock,
-  Layers,
-  CheckCircle2,
   Lock,
+  Layers,
+  Cpu,
+  Scale,
+  CalendarCheck,
 } from "lucide-react";
+import { Tile } from "@/components/bento/Tile";
+import { useToast } from "@/components/bento/Toast";
 
 export default function LandingPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [loadingRole, setLoadingRole] = useState<string | null>(null);
 
   const selectRole = async (role: "STUDENT" | "FACULTY" | "ADMIN") => {
@@ -29,6 +32,7 @@ export default function LandingPage() {
       });
 
       if (res.ok) {
+        toast(`Logged in as ${role}`, "success");
         if (role === "STUDENT") {
           router.push("/student/discover");
         } else if (role === "FACULTY") {
@@ -37,205 +41,222 @@ export default function LandingPage() {
           router.push("/admin/dashboard");
         }
       } else {
-        alert("Session error. Please ensure database seed has run.");
+        toast("Session establishment failed", "error");
       }
-    } catch (e) {
-      console.error("Role login error:", e);
+    } catch {
+      toast("Network error establishing session", "error");
     } finally {
       setLoadingRole(null);
     }
   };
 
   return (
-    <div className="py-8 sm:py-12 max-w-5xl mx-auto space-y-12">
-      {/* Hero Section */}
-      <div className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
-          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-          Autonomous Cross-Department Laboratory Resource Sharing
+    <div className="py-8 sm:py-12 max-w-4xl mx-auto space-y-8">
+      {/* Header Bento Tile */}
+      <Tile className="p-6 sm:p-8 space-y-3 bg-surface-1">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-control bg-accent text-accent-text flex items-center justify-center font-bold text-xs">
+            LL
+          </div>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-muted">
+            Campus Laboratory Federation
+          </span>
         </div>
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight">
-          Unlock Specialised Lab Gear Across Campus
+
+        <h1 className="text-2xl sm:text-3xl font-bold text-primary tracking-tight">
+          LabTab Equipment Sharing Platform
         </h1>
-        <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-          LabLink bridges departmental silos in ECE, CSE, Mechanical, and EEE. Discover scarce FPGA boards,
-          AI compute clusters, 3D printers, and testing rigs with intelligent, fair scheduling.
+
+        <p className="text-xs sm:text-sm text-primary-secondary max-w-2xl leading-relaxed">
+          Federating specialized hardware, development kits, and workstations across academic departments
+          (ECE, CSE, Mechanical, EEE) with deterministic fair slot allocation.
         </p>
-      </div>
+
+        <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] text-primary-muted">
+          <span className="px-2 py-0.5 rounded-control bg-surface-2 border border-border-subtle">
+            Deterministic Engine Decides
+          </span>
+          <span className="px-2 py-0.5 rounded-control bg-surface-2 border border-border-subtle">
+            Gemini Understands & Explains
+          </span>
+          <span className="px-2 py-0.5 rounded-control bg-surface-2 border border-border-subtle">
+            Zero Double-Booking Guarantee
+          </span>
+        </div>
+      </Tile>
 
       {/* Role Picker Section */}
-      <div className="space-y-4">
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-slate-900">
-            Select Your Role to Enter (One-Click Demo Access)
+      <div className="space-y-3">
+        <div className="px-1 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-primary-muted">
+            Select Role to Enter (One-Click Demo Access)
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Evaluator instant entry without credentials. Sessions are securely signed with <code className="bg-slate-100 text-slate-700 px-1 py-0.5 rounded">jose</code> JWT cookies and guarded by RBAC middleware.
-          </p>
+          <span className="text-[11px] text-primary-muted">No login page • Signed JWT cookies</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-          {/* Student Card */}
-          <div
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Student Tile */}
+          <Tile
             onClick={() => selectRole("STUDENT")}
-            className="group relative bg-white rounded-2xl border-2 border-slate-200 hover:border-blue-500 p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between"
+            className="p-5 flex flex-col justify-between hover:border-border-hover cursor-pointer transition-colors space-y-4"
           >
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
-                  Demo User: Alex Chen
-                </span>
-                <h3 className="text-xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-control bg-surface-2 border border-border-subtle flex items-center justify-center text-primary">
+                  <GraduationCap className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] uppercase font-semibold text-primary-muted px-2 py-0.5 rounded-control bg-surface-2">
                   Student Portal
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-accent font-semibold block uppercase tracking-wider">
+                  Alex Chen (ECE)
+                </span>
+                <h3 className="font-semibold text-sm text-primary mt-0.5">
+                  Student Researcher
                 </h3>
-                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                  Search equipment across 4 departments. Make free-text requests translated by Gemini into structured slots, with fair conflict resolution.
+                <p className="text-xs text-primary-muted mt-1 leading-relaxed">
+                  Discover equipment across 4 departments. Free-text requests with fair conflict resolution.
                 </p>
               </div>
 
-              <ul className="text-xs text-slate-500 space-y-1.5 pt-2 border-t border-slate-100">
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" /> Natural language smart booking
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" /> Multi-factor fairness score
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" /> Real-time status tracking
-                </li>
-              </ul>
+              <div className="space-y-1 text-[11px] text-primary-secondary pt-2 border-t border-border-subtle">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Natural language smart request
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Multi-factor fairness score
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Status progression tracker
+                </div>
+              </div>
             </div>
 
-            <div className="pt-6">
-              <button
-                type="button"
-                disabled={loadingRole !== null}
-                className="w-full py-2.5 px-4 rounded-xl bg-blue-600 group-hover:bg-blue-700 text-white font-medium text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
-              >
-                {loadingRole === "STUDENT" ? "Signing In..." : "Enter as Student"}
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-          </div>
+            <button
+              type="button"
+              disabled={loadingRole !== null}
+              className="w-full py-2 px-3 rounded-control bg-accent text-accent-text hover:bg-accent-hover font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+            >
+              <span>{loadingRole === "STUDENT" ? "Entering..." : "Enter as Student"}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </Tile>
 
-          {/* Faculty Card */}
-          <div
+          {/* Faculty Tile */}
+          <Tile
             onClick={() => selectRole("FACULTY")}
-            className="group relative bg-white rounded-2xl border-2 border-slate-200 hover:border-amber-500 p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between"
+            className="p-5 flex flex-col justify-between hover:border-border-hover cursor-pointer transition-colors space-y-4"
           >
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                <UserCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
-                  Demo User: Prof. David Miller
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-control bg-surface-2 border border-border-subtle flex items-center justify-center text-primary">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] uppercase font-semibold text-primary-muted px-2 py-0.5 rounded-control bg-surface-2">
+                  Faculty Review
                 </span>
-                <h3 className="text-xl font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
-                  Faculty Reviewer
+              </div>
+
+              <div>
+                <span className="text-[10px] text-accent font-semibold block uppercase tracking-wider">
+                  Prof. David Miller (ECE)
+                </span>
+                <h3 className="font-semibold text-sm text-primary mt-0.5">
+                  Department Faculty
                 </h3>
-                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                  Review project access requests scoped to your department. Review AI-drafted student justifications and approve slots with atomic safety.
+                <p className="text-xs text-primary-muted mt-1 leading-relaxed">
+                  Review student access requests scoped to your department with atomic race-condition safety.
                 </p>
               </div>
 
-              <ul className="text-xs text-slate-500 space-y-1.5 pt-2 border-t border-slate-100">
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" /> Department-scoped access queue
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" /> AI justification inspection
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" /> Race-condition double-booking guard
-                </li>
-              </ul>
+              <div className="space-y-1 text-[11px] text-primary-secondary pt-2 border-t border-border-subtle">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Scoped department queue
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Project justification review
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Atomic booking guard
+                </div>
+              </div>
             </div>
 
-            <div className="pt-6">
-              <button
-                type="button"
-                disabled={loadingRole !== null}
-                className="w-full py-2.5 px-4 rounded-xl bg-amber-600 group-hover:bg-amber-700 text-white font-medium text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
-              >
-                {loadingRole === "FACULTY" ? "Signing In..." : "Enter as Faculty"}
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-          </div>
+            <button
+              type="button"
+              disabled={loadingRole !== null}
+              className="w-full py-2 px-3 rounded-control bg-accent text-accent-text hover:bg-accent-hover font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+            >
+              <span>{loadingRole === "FACULTY" ? "Entering..." : "Enter as Faculty"}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </Tile>
 
-          {/* Admin Card */}
-          <div
+          {/* Admin Tile */}
+          <Tile
             onClick={() => selectRole("ADMIN")}
-            className="group relative bg-white rounded-2xl border-2 border-slate-200 hover:border-purple-500 p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between"
+            className="p-5 flex flex-col justify-between hover:border-border-hover cursor-pointer transition-colors space-y-4"
           >
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                <ShieldAlert className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">
-                  Demo User: Lab Administration
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-control bg-surface-2 border border-border-subtle flex items-center justify-center text-primary">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] uppercase font-semibold text-primary-muted px-2 py-0.5 rounded-control bg-surface-2">
+                  Global Oversight
                 </span>
-                <h3 className="text-xl font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
-                  Campus Lab Admin
+              </div>
+
+              <div>
+                <span className="text-[10px] text-accent font-semibold block uppercase tracking-wider">
+                  Campus Administration
+                </span>
+                <h3 className="font-semibold text-sm text-primary mt-0.5">
+                  Lab Administrator
                 </h3>
-                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                  Global campus oversight. Inspect utilization across all 4 engineering departments, discover idle equipment, and audit all bookings.
+                <p className="text-xs text-primary-muted mt-1 leading-relaxed">
+                  Inspect bento telemetry across all 4 departments, locate idle gear, and audit reservations.
                 </p>
               </div>
 
-              <ul className="text-xs text-slate-500 space-y-1.5 pt-2 border-t border-slate-100">
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" /> Recharts lab utilization charts
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" /> Under-utilized idle gear locator
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" /> Cross-department override control
-                </li>
-              </ul>
+              <div className="space-y-1 text-[11px] text-primary-secondary pt-2 border-t border-border-subtle">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Utilisation bento charts
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Idle equipment detector
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span> Reservation audit log
+                </div>
+              </div>
             </div>
 
-            <div className="pt-6">
-              <button
-                type="button"
-                disabled={loadingRole !== null}
-                className="w-full py-2.5 px-4 rounded-xl bg-purple-600 group-hover:bg-purple-700 text-white font-medium text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
-              >
-                {loadingRole === "ADMIN" ? "Signing In..." : "Enter as Admin"}
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-          </div>
+            <button
+              type="button"
+              disabled={loadingRole !== null}
+              className="w-full py-2 px-3 rounded-control bg-accent text-accent-text hover:bg-accent-hover font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+            >
+              <span>{loadingRole === "ADMIN" ? "Entering..." : "Enter as Admin"}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </Tile>
         </div>
       </div>
 
-      {/* Architecture & Security Highlights Callout */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
-          <Lock className="w-4 h-4 text-emerald-600" />
-          Enterprise Security & Core Architectural Principles
+      {/* Production Architecture Callout */}
+      <Tile className="p-4 bg-surface-2 space-y-2">
+        <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+          <Lock className="w-3.5 h-3.5 text-accent" />
+          <span>Security & SSO Architecture Note</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-600">
-          <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-            <span className="font-semibold text-slate-800 block">Deterministic Engine Decides</span>
-            <span>All scheduling, free slots, and conflict resolution are computed in pure TypeScript. No hallucinatory schedules.</span>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-            <span className="font-semibold text-slate-800 block">Gemini 2.5 Flash Server-Side</span>
-            <span>Used strictly for structured parsing, plain-language fairness explanations, and proposal drafting behind rate limiters.</span>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-            <span className="font-semibold text-slate-800 block">SSO Architecture Note</span>
-            <span>Production would replace <code className="bg-slate-200 px-1 py-0.2 rounded">/api/session</code> with college SAML/OAuth. RBAC middleware & API data scoping remain identical.</span>
-          </div>
-        </div>
-      </div>
+        <p className="text-xs text-primary-muted leading-relaxed">
+          Production would replace <code className="bg-surface-3 px-1 py-0.5 rounded text-primary">/api/session</code> with college SAML 2.0 / OAuth SSO. RBAC middleware route protection and server-side data scoping remain completely unchanged.
+        </p>
+      </Tile>
     </div>
   );
 }

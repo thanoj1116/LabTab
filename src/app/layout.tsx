@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Navbar } from "@/components/navbar";
+import { AppShell } from "@/components/shell/AppShell";
 
 export const metadata: Metadata = {
-  title: "LabLink — Campus Laboratory Resource Sharing",
+  title: "LabTab — Campus Laboratory Resource Sharing",
   description:
-    "GenAI-powered campus laboratory resource-sharing platform that helps students discover and access specialized equipment, development kits and workstations across departments.",
+    "GenAI-powered campus laboratory resource-sharing platform with deterministic fair slot allocation.",
 };
 
 export default function RootLayout({
@@ -14,22 +14,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased min-h-screen flex flex-col bg-slate-50 text-slate-900">
-        <Navbar />
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {children}
-        </main>
-        <footer className="border-t border-slate-200 bg-white py-6 mt-12 text-center text-xs text-slate-500">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p>
-              <strong>LabLink</strong> — Campus Equipment Federation & Intelligent Slot Allocation MVP
-            </p>
-            <p className="text-slate-400">
-              Deterministic Engine Decides • Gemini Understands & Explains
-            </p>
-          </div>
-        </footer>
+    <html lang="en" className="dark">
+      <body>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

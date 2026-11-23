@@ -1,21 +1,24 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Search,
-  Filter,
   Layers,
   MapPin,
   Clock,
   Sparkles,
-  CheckCircle,
-  AlertCircle,
-  Cpu,
-  Calendar,
   ChevronDown,
   ChevronUp,
+  AlertCircle,
+  Calendar,
+  Cpu,
+  X,
 } from "lucide-react";
+import { Tile } from "@/components/bento/Tile";
+import { FilterChip } from "@/components/bento/FilterChip";
+import { Skeleton } from "@/components/bento/Skeleton";
+import { useToast } from "@/components/bento/Toast";
 
 interface EquipmentBooking {
   id: string;
@@ -38,6 +41,7 @@ interface Equipment {
 }
 
 export default function DiscoverPage() {
+  const { toast } = useToast();
   const [items, setItems] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDept, setSelectedDept] = useState("ALL");
@@ -72,9 +76,11 @@ export default function DiscoverPage() {
       if (res.ok) {
         const data = await res.json();
         setItems(data.items);
+      } else {
+        toast("Failed to load catalog", "error");
       }
-    } catch (e) {
-      console.error("Failed to load equipment", e);
+    } catch {
+      toast("Network error loading catalog", "error");
     } finally {
       setLoading(false);
     }
@@ -85,6 +91,15 @@ export default function DiscoverPage() {
     fetchEquipment();
   };
 
+  const clearAllFilters = () => {
+    setSelectedDept("ALL");
+    setSelectedCategory("ALL");
+    setSearchQuery("");
+  };
+
+  const hasActiveFilters =
+    selectedDept !== "ALL" || selectedCategory !== "ALL" || searchQuery.trim().length > 0;
+
   const parseSpecsObject = (specsStr: string) => {
     try {
       return JSON.parse(specsStr);
@@ -94,108 +109,105 @@ export default function DiscoverPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <Layers className="w-6 h-6 text-blue-600" />
-            Federated Equipment Catalog
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Discover and reserve specialized development kits, hardware testbeds, and workstations across 4 engineering departments.
-          </p>
-        </div>
-
-        <Link
-          href="/student/request"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium text-xs shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02]"
-        >
-          <Sparkles className="w-4 h-4" />
-          Smart AI Request
-        </Link>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-4">
-        {/* Search */}
+    <div className="space-y-4">
+      {/* Search and Filters Tile */}
+      <Tile className="space-y-4">
+        {/* Search Input Row */}
         <form onSubmit={handleSearchSubmit} className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Search className="w-4 h-4 text-primary-muted absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Search by equipment name, specifications (e.g. FPGA, RTX 4090, 50kN), or room..."
+              placeholder="Search equipment by name, category, or specifications (e.g. FPGA, RTX 4090, 50kN)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-control bg-surface-2 border border-border-subtle text-primary placeholder:text-primary-muted focus:border-accent focus:outline-none"
             />
           </div>
           <button
             type="submit"
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-xl transition-colors"
+            className="px-4 py-2 rounded-control bg-surface-3 hover:bg-border-hover border border-border-subtle text-primary text-xs font-medium transition-colors"
           >
             Search
           </button>
         </form>
 
-        {/* Department Tabs & Category Pills */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between pt-2 border-t border-slate-100">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1">
-              Dept:
+        {/* Filter Chips: Department & Category */}
+        <div className="flex flex-col gap-2.5 pt-2 border-t border-border-subtle">
+          {/* Department Chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-primary-muted uppercase tracking-wider mr-2">
+              Department:
             </span>
             {departments.map((dept) => (
-              <button
+              <FilterChip
                 key={dept}
+                label={dept}
+                active={selectedDept === dept}
                 onClick={() => setSelectedDept(dept)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                  selectedDept === dept
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {dept}
-              </button>
+              />
             ))}
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1">
+          {/* Category Chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-primary-muted uppercase tracking-wider mr-2">
               Category:
             </span>
             {categories.map((cat) => (
-              <button
+              <FilterChip
                 key={cat}
+                label={cat}
+                active={selectedCategory === cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                  selectedCategory === cat
-                    ? "bg-slate-800 text-white"
-                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                }`}
-              >
-                {cat}
-              </button>
+              />
             ))}
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="ml-auto text-[11px] text-primary-muted hover:text-accent font-medium flex items-center gap-1"
+              >
+                <X className="w-3 h-3" />
+                Clear all filters
+              </button>
+            )}
           </div>
         </div>
+      </Tile>
+
+      {/* Result Count Row */}
+      <div className="flex items-center justify-between text-xs text-primary-muted px-1">
+        <span>
+          Showing <strong className="text-primary tabular-nums">{items.length}</strong> equipment items
+        </span>
+        <span className="text-[11px]">Direct reservation & AI slot pairing</span>
       </div>
 
-      {/* Equipment List Grid */}
+      {/* Catalog Grid */}
       {loading ? (
-        <div className="py-16 text-center space-y-3">
-          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-500 font-medium">Scanning campus laboratory catalog...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-64" />
+          ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-2">
-          <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
-          <h3 className="font-semibold text-slate-900 text-sm">No equipment found matching criteria</h3>
-          <p className="text-xs text-slate-500">
-            Try adjusting your search terms, department filters, or category selection.
+        <Tile className="p-12 text-center space-y-3">
+          <AlertCircle className="w-8 h-8 text-primary-muted mx-auto" />
+          <h3 className="font-semibold text-primary text-sm">No equipment matches current criteria</h3>
+          <p className="text-xs text-primary-muted max-w-sm mx-auto">
+            Try adjusting your search terms or clearing your department and category filters.
           </p>
-        </div>
+          <button
+            onClick={clearAllFilters}
+            className="px-3 py-1.5 rounded-control bg-accent text-accent-text text-xs font-medium inline-block mt-2"
+          >
+            Reset Filters
+          </button>
+        </Tile>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map((eq) => {
             const specs = parseSpecsObject(eq.specs);
             const isScarce = eq.quantity === 1;
@@ -203,59 +215,47 @@ export default function DiscoverPage() {
             const isExpanded = expandedSlotsId === eq.id;
 
             return (
-              <div
+              <Tile
                 key={eq.id}
-                className="bg-white rounded-2xl border border-slate-200 hover:border-blue-400 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
+                className="flex flex-col justify-between hover:border-border-hover transition-colors"
               >
-                <div className="p-5 space-y-4">
-                  {/* Department & Status Badges */}
+                <div className="space-y-3">
+                  {/* Top Badges */}
                   <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                        eq.department === "ECE"
-                          ? "bg-blue-100 text-blue-800"
-                          : eq.department === "CSE"
-                          ? "bg-indigo-100 text-indigo-800"
-                          : eq.department === "Mechanical"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-amber-100 text-amber-800"
-                      }`}
-                    >
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-control bg-surface-3 text-primary">
                       {eq.department}
                     </span>
 
-                    <div className="flex items-center gap-1.5">
-                      {isScarce ? (
-                        <span className="text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          1 Unit (Scarce)
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
-                          {eq.quantity} Units Available
-                        </span>
-                      )}
-                    </div>
+                    {isScarce ? (
+                      <span className="text-[10px] font-semibold bg-status-rejected-bg text-status-rejected border border-status-rejected/30 px-2 py-0.5 rounded-control tabular-nums">
+                        1 Unit (Scarce)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold bg-surface-2 text-primary-secondary px-2 py-0.5 rounded-control tabular-nums">
+                        {eq.quantity} Units
+                      </span>
+                    )}
                   </div>
 
-                  {/* Title & Category */}
+                  {/* Name and Category */}
                   <div>
-                    <h3 className="font-bold text-slate-900 text-base leading-snug line-clamp-1">
+                    <h3 className="font-semibold text-primary text-sm leading-snug line-clamp-1">
                       {eq.name}
                     </h3>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">{eq.category}</p>
+                    <p className="text-[11px] text-primary-muted mt-0.5">{eq.category}</p>
                   </div>
 
-                  {/* Specifications Card */}
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Hardware Specifications
+                  {/* Specs Box */}
+                  <div className="p-3 rounded-control bg-surface-2 border border-border-subtle text-xs space-y-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-muted block">
+                      Specifications
                     </span>
-                    <div className="space-y-1 text-slate-600 max-h-24 overflow-y-auto">
-                      {Object.entries(specs).slice(0, 3).map(([key, value]) => (
+                    <div className="space-y-1 max-h-20 overflow-y-auto">
+                      {Object.entries(specs).slice(0, 3).map(([key, val]) => (
                         <div key={key} className="flex justify-between gap-2 text-[11px]">
-                          <span className="font-medium text-slate-500 capitalize">{key}:</span>
-                          <span className="font-semibold text-slate-800 text-right truncate">
-                            {Array.isArray(value) ? value.join(", ") : String(value)}
+                          <span className="text-primary-muted capitalize truncate">{key}:</span>
+                          <span className="font-medium text-primary text-right truncate">
+                            {Array.isArray(val) ? val.join(", ") : String(val)}
                           </span>
                         </div>
                       ))}
@@ -263,75 +263,75 @@ export default function DiscoverPage() {
                   </div>
 
                   {/* Location & Open Hours */}
-                  <div className="space-y-1 text-xs text-slate-500 pt-1 border-t border-slate-100">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <div className="space-y-1 text-xs text-primary-muted pt-1 border-t border-border-subtle">
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <MapPin className="w-3.5 h-3.5 shrink-0 text-primary-muted" />
                       <span className="truncate">{eq.location}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>
-                        Daily Access: {eq.openHoursStart} – {eq.openHoursEnd}
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <Clock className="w-3.5 h-3.5 shrink-0 text-primary-muted" />
+                      <span className="tabular-nums">
+                        {eq.openHoursStart} – {eq.openHoursEnd}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Slot Grid Expand & Action */}
-                <div className="p-4 bg-slate-50/70 border-t border-slate-100 space-y-3">
-                  <div className="flex items-center justify-between">
+                {/* Bottom Actions and Live Slots Expander */}
+                <div className="pt-3 mt-3 border-t border-border-subtle space-y-2">
+                  <div className="flex items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => setExpandedSlotsId(isExpanded ? null : eq.id)}
-                      className="text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1 font-medium"
+                      className="text-xs text-primary-secondary hover:text-primary flex items-center gap-1 font-medium"
                     >
-                      <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{activeBookingsCount} Active Bookings</span>
+                      <Calendar className="w-3.5 h-3.5 text-primary-muted" />
+                      <span className="tabular-nums">{activeBookingsCount} Booked</span>
                       {isExpanded ? (
-                        <ChevronUp className="w-3.5 h-3.5" />
+                        <ChevronUp className="w-3 h-3" />
                       ) : (
-                        <ChevronDown className="w-3.5 h-3.5" />
+                        <ChevronDown className="w-3 h-3" />
                       )}
                     </button>
 
                     <Link
                       href={`/student/request?equipmentId=${eq.id}`}
-                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                      className="px-3 py-1.5 rounded-control bg-accent text-accent-text hover:bg-accent-hover font-medium text-xs flex items-center gap-1.5 transition-colors shadow-sm"
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Request Slot
+                      <Sparkles className="w-3 h-3" />
+                      Request
                     </Link>
                   </div>
 
-                  {/* Expandable Slot Schedule */}
+                  {/* Expandable Live Slot Schedule */}
                   {isExpanded && (
-                    <div className="pt-2 border-t border-slate-200/60 text-xs space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
-                        <span>Upcoming Confirmed Bookings</span>
-                        <span className="text-[10px] text-slate-400">Time window</span>
+                    <div className="pt-2 border-t border-border-subtle text-xs space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-primary-muted uppercase">
+                        <span>Scheduled Slots</span>
+                        <span>Window</span>
                       </div>
 
                       {eq.bookings.length === 0 ? (
-                        <p className="text-[11px] text-emerald-600 font-medium py-1">
-                          No active bookings. All slots during open hours are free!
+                        <p className="text-[11px] text-status-approved font-medium py-1">
+                          No active bookings. All open hours free.
                         </p>
                       ) : (
-                        <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                        <div className="space-y-1 max-h-28 overflow-y-auto">
                           {eq.bookings.map((b) => {
                             const start = new Date(b.start);
                             const end = new Date(b.end);
                             return (
                               <div
                                 key={b.id}
-                                className="flex items-center justify-between p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px]"
+                                className="flex items-center justify-between p-2 rounded-control bg-surface-2 border border-border-subtle text-[11px]"
                               >
-                                <span className="font-semibold">
+                                <span className="font-medium text-primary">
                                   {start.toLocaleDateString(undefined, {
                                     month: "short",
                                     day: "numeric",
                                   })}
                                 </span>
-                                <span>
+                                <span className="tabular-nums text-primary-secondary">
                                   {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} –{" "}
                                   {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                 </span>
@@ -343,7 +343,7 @@ export default function DiscoverPage() {
                     </div>
                   )}
                 </div>
-              </div>
+              </Tile>
             );
           })}
         </div>

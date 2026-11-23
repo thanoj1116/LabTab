@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   UserCheck,
   Clock,
@@ -12,8 +12,16 @@ import {
   Sparkles,
   RefreshCw,
   Scale,
-  ShieldCheck,
+  Eye,
+  Filter,
 } from "lucide-react";
+import { Tile } from "@/components/bento/Tile";
+import { KpiTile } from "@/components/bento/KpiTile";
+import { DataTable } from "@/components/bento/DataTable";
+import { Drawer } from "@/components/bento/Drawer";
+import { Skeleton } from "@/components/bento/Skeleton";
+import { ProgressBar } from "@/components/bento/ProgressBar";
+import { useToast } from "@/components/bento/Toast";
 
 interface PendingRequest {
   id: string;
@@ -41,10 +49,15 @@ interface PendingRequest {
 }
 
 export default function FacultyApprovalsPage() {
+  const { toast } = useToast();
   const [requests, setRequests] = useState<PendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-  const [feedbackMessage, setFeedbackMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Side Drawer state for reviewing single request
+  const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [showRejectInput, setShowRejectInput] = useState(false);
 
   useEffect(() => {
     fetchPendingApprovals();
@@ -57,21 +70,60 @@ export default function FacultyApprovalsPage() {
       if (res.ok) {
         const data = await res.json();
         setRequests(data.requests);
+      } else {
+        toast("Failed to load department approvals", "error");
       }
-    } catch (e) {
-      console.error("Failed to load approvals", e);
+    } catch {
+      toast("Network error loading queue", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDecision = async (requestId: string, decision: "APPROVED" | "REJECTED") => {
-    setActionLoadingId(requestId);
-    setFeedbackMessage(null);
+  // Derive Overview Metrics
+  const overview = useMemo(() => {
+    if (requests.length === 0) {
+      return {
+        pendingCount: 0,
+        oldestWaiting: "None",
+        avgPriority: "0%",
+      };
+    }
 
-    const reason = decision === "APPROVED"
-      ? "Approved by faculty after project feasibility review."
-      : "Declined due to lab capacity constraints.";
+    const avg =
+      requests.reduce((acc, curr) => acc + curr.priorityScore, 0) / requests.length;
+
+    // Sort by createdAt ascending to find oldest waiting
+    const sorted = [...requests].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    const oldestDate = new Date(sorted[0].createdAt);
+    const now = new Date();
+    const diffHours = Math.max(1, Math.round((now.getTime() - oldestDate.getTime()) / (1000 * 3600)));
+
+    return {
+      pendingCount: requests.length,
+      oldestWaiting: `${diffHours}h ago`,
+      avgPriority: `${(avg * 100).toFixed(0)}%`,
+    };
+  }, [requests]);
+
+  const handleDecision = async (
+    requestId: string,
+    decision: "APPROVED" | "REJECTED",
+    reasonText?: string
+  ) => {
+    if (decision === "REJECTED" && !reasonText?.trim()) {
+      toast("Rejection reason is required", "error");
+      return;
+    }
+
+    setActionLoadingId(requestId);
+
+    const reason =
+      decision === "APPROVED"
+        ? reasonText || "Approved by faculty reviewer after project necessity verification."
+        : reasonText;
 
     try {
       const res = await fetch("/api/faculty/approvals", {
@@ -83,189 +135,300 @@ export default function FacultyApprovalsPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setFeedbackMessage({
-          type: "success",
-          text: decision === "APPROVED"
-            ? "Request approved! Confirmed laboratory booking created atomically."
+        toast(
+          decision === "APPROVED"
+            ? "Request approved! Atomic booking confirmed."
             : "Request rejected.",
-        });
-        // Remove from pending list
+          "success"
+        );
         setRequests((prev) => prev.filter((r) => r.id !== requestId));
+        setSelectedRequest(null);
+        setShowRejectInput(false);
+        setRejectReason("");
       } else {
-        setFeedbackMessage({
-          type: "error",
-          text: data.error || "Decision failed to process.",
-        });
+        toast(data.error || "Decision failed", "error");
       }
-    } catch (e) {
-      console.error("Decision error", e);
-      setFeedbackMessage({
-        type: "error",
-        text: "Network or server error during decision submission.",
-      });
+    } catch {
+      toast("Network error recording decision", "error");
     } finally {
       setActionLoadingId(null);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      {/* Header */}
-      <div className="pb-2 border-b border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <UserCheck className="w-6 h-6 text-amber-600" />
-          Faculty Approval Queue
-        </h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Review student project access requests scoped to your department. Approvals run in atomic database transactions to guarantee zero double bookings.
-        </p>
+    <div className="space-y-4 max-w-5xl mx-auto pb-8">
+      {/* Bento Row 1: Overview Tiles */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <KpiTile
+          label="Pending Department Requests"
+          value={overview.pendingCount}
+          delta={{ value: "Queue", isNeutral: true }}
+          subtitle="Scoped to your academic department"
+          icon={<Clock className="w-4 h-4 text-status-pending" />}
+        />
+        <KpiTile
+          label="Oldest Waiting Request"
+          value={overview.oldestWaiting}
+          subtitle="FIFO order adjudication target"
+          icon={<AlertCircle className="w-4 h-4 text-primary-muted" />}
+        />
+        <KpiTile
+          label="Average Priority Score"
+          value={overview.avgPriority}
+          subtitle="Deterministic urgency & fairness"
+          icon={<Scale className="w-4 h-4 text-accent" />}
+        />
       </div>
 
-      {/* Real-time Feedback Banner */}
-      {feedbackMessage && (
-        <div
-          className={`p-4 rounded-xl text-xs flex items-center gap-2 font-medium ${
-            feedbackMessage.type === "success"
-              ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-              : "bg-rose-50 border border-rose-200 text-rose-800"
-          }`}
-        >
-          {feedbackMessage.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-          )}
-          <span>{feedbackMessage.text}</span>
+      {/* Bento Row 2: Approvals Data Table */}
+      <Tile className="space-y-3">
+        <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-primary">
+              Department Approval Queue
+            </h2>
+            <p className="text-xs text-primary-muted mt-0.5">
+              Review and authorize student access with atomic double-booking protection
+            </p>
+          </div>
+          <button
+            onClick={fetchPendingApprovals}
+            className="p-1.5 rounded-control bg-surface-2 hover:bg-surface-3 border border-border-subtle text-primary transition-colors text-xs flex items-center gap-1"
+            title="Refresh queue"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-[11px]">Refresh</span>
+          </button>
         </div>
-      )}
 
-      {loading ? (
-        <div className="py-16 text-center space-y-3">
-          <div className="w-8 h-8 border-3 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-500 font-medium">Scanning pending department requests...</p>
-        </div>
-      ) : requests.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-2">
-          <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-          <h3 className="font-semibold text-slate-900 text-sm">Approval Queue Clear</h3>
-          <p className="text-xs text-slate-500">
-            All student resource requests in your department have been reviewed.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {requests.map((req) => {
-            const start = new Date(req.preferredStart);
-            const deadline = new Date(req.deadline);
-            const isProcessing = actionLoadingId === req.id;
-
-            return (
-              <div
-                key={req.id}
-                className="bg-white rounded-2xl border border-slate-200 hover:border-amber-400 shadow-sm p-6 space-y-5 transition-all"
-              >
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                        {req.student.department || "Campus"} Student
-                      </span>
-                      <span className="text-xs font-semibold text-slate-800">
-                        {req.student.name} ({req.student.email})
-                      </span>
+        <DataTable
+          data={requests}
+          keyExtractor={(r) => r.id}
+          emptyMessage="No pending requests in your department queue."
+          onRowClick={(r) => {
+            setSelectedRequest(r);
+            setShowRejectInput(false);
+            setRejectReason("");
+          }}
+          columns={[
+            {
+              header: "Student",
+              cell: (r) => (
+                <div>
+                  <div className="font-semibold text-primary">{r.student.name}</div>
+                  <div className="text-[11px] text-primary-muted truncate">{r.student.email}</div>
+                </div>
+              ),
+            },
+            {
+              header: "Project",
+              cell: (r) => (
+                <div className="max-w-[220px]">
+                  <div className="font-medium text-primary truncate">{r.projectTitle}</div>
+                  <div className="text-[11px] text-primary-muted truncate">{r.projectDescription}</div>
+                </div>
+              ),
+            },
+            {
+              header: "Equipment",
+              cell: (r) => (
+                <div className="max-w-[160px]">
+                  <div className="font-medium text-primary truncate">{r.equipment.name}</div>
+                  <div className="text-[11px] text-primary-muted truncate">{r.equipment.location}</div>
+                </div>
+              ),
+            },
+            {
+              header: "Requested Slot",
+              cell: (r) => {
+                const start = new Date(r.preferredStart);
+                return (
+                  <div className="tabular-nums text-[11px]">
+                    <div className="font-medium text-primary">
+                      {start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                     </div>
-                    <h3 className="text-base font-bold text-slate-900 mt-1">
-                      {req.projectTitle}
-                    </h3>
+                    <div className="text-primary-muted">
+                      {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ({r.durationHours}h)
+                    </div>
                   </div>
+                );
+              },
+            },
+            {
+              header: "Deadline",
+              cell: (r) => {
+                const dead = new Date(r.deadline);
+                return (
+                  <span className="tabular-nums text-primary-secondary text-[11px]">
+                    {dead.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </span>
+                );
+              },
+            },
+            {
+              header: "Priority",
+              cell: (r) => (
+                <span className="tabular-nums font-semibold text-accent text-xs">
+                  {(r.priorityScore * 100).toFixed(0)}%
+                </span>
+              ),
+            },
+            {
+              header: "Action",
+              className: "text-right",
+              cell: (r) => (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedRequest(r);
+                    setShowRejectInput(false);
+                    setRejectReason("");
+                  }}
+                  className="px-2.5 py-1 rounded-control bg-surface-3 hover:bg-border-hover text-primary text-xs font-medium inline-flex items-center gap-1 transition-colors"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>Review</span>
+                </button>
+              ),
+            },
+          ]}
+        />
+      </Tile>
 
-                  <div className="text-right">
-                    <span className="text-[10px] font-semibold text-slate-400 block uppercase">
-                      Computed Priority
-                    </span>
-                    <span className="text-sm font-extrabold text-blue-600">
-                      {(req.priorityScore * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
+      {/* Side Drawer: Detailed Inspection & Approval Actions */}
+      <Drawer
+        isOpen={selectedRequest !== null}
+        onClose={() => {
+          setSelectedRequest(null);
+          setShowRejectInput(false);
+          setRejectReason("");
+        }}
+        title="Review Access Request"
+        subtitle={selectedRequest ? `ID: ${selectedRequest.id.slice(0, 12)}` : ""}
+      >
+        {selectedRequest && (
+          <div className="space-y-4">
+            {/* Student & Project Details */}
+            <div className="p-3.5 rounded-control bg-surface-2 border border-border-subtle space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-muted">
+                  Student Applicant
+                </span>
+                <span className="text-[11px] font-semibold text-accent tabular-nums">
+                  Score: {(selectedRequest.priorityScore * 100).toFixed(0)}%
+                </span>
+              </div>
+              <div>
+                <p className="font-semibold text-primary text-sm">{selectedRequest.student.name}</p>
+                <p className="text-[11px] text-primary-muted">{selectedRequest.student.email}</p>
+              </div>
+            </div>
 
-                {/* Description & Justification */}
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <span className="font-semibold text-slate-700 block text-[11px] uppercase tracking-wider text-slate-400">
-                      Project Description:
-                    </span>
-                    <p className="text-slate-800 mt-0.5 leading-relaxed">
-                      {req.projectDescription}
-                    </p>
-                  </div>
+            {/* Target Hardware */}
+            <div className="p-3.5 rounded-control bg-surface-2 border border-border-subtle space-y-1.5 text-xs">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-muted block">
+                Target Hardware & Laboratory
+              </span>
+              <p className="font-semibold text-primary">{selectedRequest.equipment.name}</p>
+              <p className="text-primary-secondary flex items-center gap-1 text-[11px]">
+                <MapPin className="w-3.5 h-3.5 text-primary-muted shrink-0" />
+                <span>{selectedRequest.equipment.location}</span>
+              </p>
+            </div>
 
-                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70 text-amber-950 space-y-1">
-                    <span className="font-bold flex items-center gap-1.5 text-amber-800 text-[11px]">
-                      <Sparkles className="w-3 h-3" />
-                      Student & Gemini Laboratory Justification:
-                    </span>
-                    <p className="text-[11px] leading-relaxed text-amber-900">
-                      {req.justification}
-                    </p>
-                  </div>
-                </div>
+            {/* Requested Slot */}
+            <div className="p-3.5 rounded-control bg-surface-2 border border-border-subtle space-y-1.5 text-xs">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-muted block">
+                Scheduled Slot Window
+              </span>
+              <div className="flex items-center gap-2 tabular-nums font-medium text-primary">
+                <Calendar className="w-3.5 h-3.5 text-primary-muted" />
+                <span>
+                  {new Date(selectedRequest.preferredStart).toLocaleDateString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+                <span>
+                  ({new Date(selectedRequest.preferredStart).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, {selectedRequest.durationHours} hours)
+                </span>
+              </div>
+              <p className="text-[11px] text-primary-muted tabular-nums">
+                Hard Project Deadline: {new Date(selectedRequest.deadline).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              </p>
+            </div>
 
-                {/* Slot Details Card */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Target Equipment
-                    </span>
-                    <p className="font-bold text-slate-900 text-sm">
-                      {req.equipment.name}
-                    </p>
-                    <p className="text-slate-600 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                      {req.equipment.location}
-                    </p>
-                  </div>
+            {/* Project Description */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-muted block">
+                Project Methodology & Objectives:
+              </span>
+              <p className="text-xs text-primary leading-relaxed p-3 rounded-control bg-surface-2 border border-border-subtle">
+                {selectedRequest.projectDescription}
+              </p>
+            </div>
 
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Requested Slot & Deadline
-                    </span>
-                    <p className="font-semibold text-slate-900 flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      {start.toLocaleDateString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                      {" "}({start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, {req.durationHours} hrs)
-                    </p>
-                    <p className="text-slate-500 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      Deadline: {deadline.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </p>
-                  </div>
-                </div>
+            {/* AI Proposal Justification */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent block flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                Submitted Justification for Faculty:
+              </span>
+              <p className="text-xs text-primary-secondary leading-relaxed p-3 rounded-control bg-surface-2 border border-border-subtle font-mono text-[11px]">
+                {selectedRequest.justification}
+              </p>
+            </div>
 
-                {/* Actions */}
-                <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+            {/* Rejection Reason Form (if triggered) */}
+            {showRejectInput && (
+              <div className="p-3.5 rounded-control bg-status-rejected-bg border border-status-rejected/30 space-y-2 text-xs">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-status-rejected block">
+                  Rejection Reason (Required) *
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Provide brief reason for student (e.g. equipment scheduled for maintenance, duration exceeds cap)..."
+                  className="w-full p-2.5 rounded-control bg-surface-1 border border-border-subtle text-primary text-xs focus:outline-none"
+                />
+              </div>
+            )}
+
+            {/* Actions Footer */}
+            <div className="pt-4 border-t border-border-subtle flex items-center justify-between gap-2">
+              {!showRejectInput ? (
+                <>
                   <button
                     type="button"
-                    onClick={() => handleDecision(req.id, "REJECTED")}
-                    disabled={isProcessing}
-                    className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-300 text-rose-700 font-medium text-xs transition-colors flex items-center gap-1.5"
+                    onClick={() => setShowRejectInput(true)}
+                    className="px-3 py-2 rounded-control border border-status-rejected/40 text-status-rejected hover:bg-status-rejected-bg text-xs font-medium transition-colors"
                   >
-                    <XCircle className="w-3.5 h-3.5" />
-                    Decline Request
+                    Decline Request...
                   </button>
-
                   <button
                     type="button"
-                    onClick={() => handleDecision(req.id, "APPROVED")}
-                    disabled={isProcessing}
-                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                    onClick={() => handleDecision(selectedRequest.id, "APPROVED")}
+                    disabled={actionLoadingId === selectedRequest.id}
+                    className="px-4 py-2 rounded-control bg-accent text-accent-text hover:bg-accent-hover font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-40"
                   >
-                    {isProcessing ? (
+                    {actionLoadingId === selectedRequest.id ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         Validating Transaction...
@@ -273,16 +436,34 @@ export default function FacultyApprovalsPage() {
                     ) : (
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Approve & Confirm Booking
+                        Approve & Confirm Slot
                       </>
                     )}
                   </button>
+                </>
+              ) : (
+                <div className="w-full flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectInput(false)}
+                    className="px-3 py-1.5 rounded-control border border-border-subtle text-primary-muted hover:bg-surface-2 text-xs"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDecision(selectedRequest.id, "REJECTED", rejectReason)}
+                    disabled={actionLoadingId === selectedRequest.id || !rejectReason.trim()}
+                    className="px-3 py-1.5 rounded-control bg-status-rejected text-white hover:opacity-90 font-medium text-xs disabled:opacity-40"
+                  >
+                    Confirm Rejection
+                  </button>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              )}
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }
